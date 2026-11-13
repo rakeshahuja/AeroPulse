@@ -4,6 +4,8 @@ AeroPulse is a modern, real-time weather web app built with plain HTML, Tailwind
 
 **Created by Rakesh Nanak Ahuja**
 
+**Live Demo:** [https://rakeshahuja.github.io/AeroPulse/](https://rakeshahuja.github.io/AeroPulse/)
+
 ![AeroPulse Screenshot](screenshots/preview.png)
 
 ---
