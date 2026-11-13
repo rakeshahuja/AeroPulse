@@ -1,0 +1,615 @@
+<!DOCTYPE html>
+<!-- AeroPulse | Copyright (c) 2026 Rakesh Nanak Ahuja | MIT License -->
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AeroPulse - Real-Time Atmosphere</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect width='24' height='24' rx='6' fill='%230f172a'/%3E%3Cg transform='translate(3 3) scale(.75)' stroke-width='2'%3E%3Cpath d='M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z' stroke='%2334d399'/%3E%3Cpath d='M6 14H8.5L10 11L12.5 17L14 13L15 14H18' stroke='%23c084fc'/%3E%3C/g%3E%3C/svg%3E" />
+
+  <!-- Tailwind CSS CDN (version pinned) -->
+  <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+
+  <!-- Lucide Icons CDN (version pinned) -->
+  <script src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.min.js"></script>
+
+  <!-- Google Fonts (Inter) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: { sans: ['Inter', 'sans-serif'] }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    body { font-family: 'Inter', sans-serif; background-color: #0b0f19; }
+
+    .aura-emerald {
+      position: absolute; width: 450px; height: 450px;
+      background: radial-gradient(circle, rgba(16, 185, 129, 0.15) 0%, rgba(0, 0, 0, 0) 70%);
+      top: -100px; left: -100px; z-index: 0; pointer-events: none;
+    }
+    .aura-purple {
+      position: absolute; width: 500px; height: 500px;
+      background: radial-gradient(circle, rgba(168, 85, 247, 0.12) 0%, rgba(0, 0, 0, 0) 70%);
+      bottom: -150px; right: -100px; z-index: 0; pointer-events: none;
+    }
+
+    .glass-card {
+      background: rgba(17, 24, 39, 0.65);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .glass-card:hover {
+      border-color: rgba(16, 185, 129, 0.25);
+      box-shadow: 0 10px 30px -10px rgba(16, 185, 129, 0.15);
+      transform: translateY(-2px);
+    }
+
+    #dashboard { transition: opacity 0.25s ease; }
+    #dashboard.is-loading { opacity: 0.45; pointer-events: none; }
+  </style>
+</head>
+<body class="text-slate-100 min-h-screen relative overflow-x-hidden selection:bg-emerald-500 selection:text-black flex flex-col justify-between">
+
+  <div class="aura-emerald"></div>
+  <div class="aura-purple"></div>
+
+  <div class="relative z-10 max-w-6xl mx-auto px-4 py-6 md:py-10 w-full space-y-6">
+
+    <!-- Header -->
+    <header class="flex flex-col sm:flex-row items-center justify-between gap-4 glass-card p-4 sm:p-5 rounded-2xl">
+
+      <div class="flex items-center gap-3.5">
+        <div class="relative flex items-center justify-center w-12 h-12 rounded-2xl bg-gradient-to-tr from-emerald-500/20 via-purple-500/20 to-emerald-500/10 border border-white/10 shadow-lg shadow-emerald-500/10 shrink-0">
+          <svg class="w-8 h-8" viewBox="0 0 24 24" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z" stroke="#34d399"></path>
+            <path d="M6 14H8.5L10 11L12.5 17L14 13L15 14H18" stroke="#c084fc"></path>
+          </svg>
+          <span class="absolute -top-1 -right-1 flex h-3 w-3">
+            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+            <span class="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
+          </span>
+        </div>
+
+        <div>
+          <h1 class="text-2xl font-black tracking-tight text-white flex items-center">
+            Aero<span class="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 via-teal-300 to-purple-400">Pulse</span>
+          </h1>
+          <p class="text-[11px] text-slate-400 font-medium tracking-wider uppercase">Live Atmospheric Intelligence</p>
+        </div>
+      </div>
+
+      <form id="searchForm" class="flex items-center gap-2 w-full sm:w-auto" role="search">
+        <div class="relative w-full sm:w-72">
+          <label for="searchInput" class="sr-only">Search city</label>
+          <input
+            type="text"
+            id="searchInput"
+            autocomplete="off"
+            placeholder="Search city (e.g. Mumbai, New York)..."
+            class="w-full bg-slate-900/90 border border-white/10 text-slate-200 placeholder-slate-500 text-sm rounded-xl pl-10 pr-4 py-2.5 focus:outline-none focus:border-emerald-500/60 focus:ring-1 focus:ring-emerald-500/60 transition-all"
+          />
+          <i data-lucide="search" class="w-4 h-4 text-slate-400 absolute left-3.5 top-3"></i>
+        </div>
+
+        <button
+          type="submit"
+          class="bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-slate-950 font-semibold text-sm px-4 py-2.5 rounded-xl transition-all shadow-md shadow-emerald-500/20 active:scale-95 shrink-0"
+        >
+          Search
+        </button>
+
+        <button
+          type="button"
+          id="locateBtn"
+          title="Use Current Location"
+          aria-label="Use my current location"
+          class="p-2.5 rounded-xl bg-slate-800/80 hover:bg-slate-700/80 text-emerald-400 border border-white/10 transition-all active:scale-95 shrink-0"
+        >
+          <i data-lucide="locate" class="w-5 h-5"></i>
+        </button>
+      </form>
+    </header>
+
+    <!-- Inline error message -->
+    <div id="errorBox" role="alert" aria-live="polite" class="hidden items-center gap-2 rounded-xl border border-rose-500/30 bg-rose-500/10 text-rose-300 text-sm px-4 py-3">
+      <i data-lucide="alert-triangle" class="w-4 h-4 shrink-0"></i>
+      <span id="errorText"></span>
+    </div>
+
+    <div id="dashboard" class="space-y-8">
+
+      <!-- Main grid -->
+      <main class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+        <!-- Hero card -->
+        <section class="lg:col-span-5 glass-card rounded-3xl p-6 sm:p-8 flex flex-col justify-between relative overflow-hidden">
+          <div class="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-emerald-500 via-teal-400 to-purple-500"></div>
+
+          <div class="space-y-6">
+            <div class="flex items-start justify-between gap-3">
+              <div class="min-w-0">
+                <div class="flex items-center gap-2">
+                  <i data-lucide="map-pin" class="w-5 h-5 text-emerald-400 shrink-0"></i>
+                  <h2 id="cityName" class="text-3xl font-bold tracking-tight text-white truncate">--</h2>
+                </div>
+                <p id="locationSub" class="text-xs text-slate-500 mt-1 truncate">&nbsp;</p>
+                <p id="currentDate" class="text-xs text-slate-400 mt-0.5">--</p>
+              </div>
+
+              <span id="liveBadge" class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shrink-0">
+                <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                <span id="liveBadgeText">Live</span>
+              </span>
+            </div>
+
+            <div class="flex items-center justify-between py-4 border-y border-white/5">
+              <div>
+                <div class="flex items-start">
+                  <span id="tempValue" class="text-6xl sm:text-7xl font-black tracking-tight text-white">--</span>
+                  <span class="text-3xl font-light text-emerald-400 mt-1">°C</span>
+                </div>
+                <p id="weatherCondition" class="text-slate-300 font-medium text-base mt-1">--</p>
+              </div>
+
+              <div id="heroIconContainer" class="p-4 rounded-2xl bg-gradient-to-br from-white/5 to-white/0 border border-white/10 shadow-inner">
+                <i data-lucide="cloud-sun" class="w-16 h-16 text-emerald-400"></i>
+              </div>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-2 gap-3 pt-6 text-sm">
+            <div class="bg-slate-900/50 p-3 rounded-xl border border-white/5 flex items-center gap-3">
+              <i data-lucide="thermometer" class="w-5 h-5 text-purple-400"></i>
+              <div>
+                <p class="text-[11px] text-slate-400 uppercase font-medium">Feels Like</p>
+                <p id="feelsLike" class="font-bold text-slate-200">--</p>
+              </div>
+            </div>
+            <div class="bg-slate-900/50 p-3 rounded-xl border border-white/5 flex items-center gap-3">
+              <i data-lucide="arrow-up-down" class="w-5 h-5 text-emerald-400"></i>
+              <div>
+                <p class="text-[11px] text-slate-400 uppercase font-medium">High / Low</p>
+                <p id="highLow" class="font-bold text-slate-200">--</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Metrics -->
+        <section class="lg:col-span-7 grid grid-cols-2 sm:grid-cols-3 gap-4">
+
+          <div class="glass-card p-5 rounded-2xl flex flex-col justify-between">
+            <div class="flex items-center justify-between text-slate-400">
+              <span class="text-xs font-semibold uppercase tracking-wider">Humidity</span>
+              <i data-lucide="droplets" class="w-5 h-5 text-teal-400"></i>
+            </div>
+            <div class="mt-4">
+              <div id="humidityVal" class="text-2xl font-bold text-white">--</div>
+              <p id="humidityNote" class="text-[11px] text-slate-400 mt-1">--</p>
+            </div>
+          </div>
+
+          <div class="glass-card p-5 rounded-2xl flex flex-col justify-between">
+            <div class="flex items-center justify-between text-slate-400">
+              <span class="text-xs font-semibold uppercase tracking-wider">Wind Speed</span>
+              <i data-lucide="wind" class="w-5 h-5 text-emerald-400"></i>
+            </div>
+            <div class="mt-4">
+              <div id="windVal" class="text-2xl font-bold text-white">--</div>
+              <p id="windNote" class="text-[11px] text-slate-400 mt-1">--</p>
+            </div>
+          </div>
+
+          <div class="glass-card p-5 rounded-2xl flex flex-col justify-between">
+            <div class="flex items-center justify-between text-slate-400">
+              <span class="text-xs font-semibold uppercase tracking-wider">UV Index</span>
+              <i data-lucide="sun" class="w-5 h-5 text-purple-400"></i>
+            </div>
+            <div class="mt-4">
+              <div class="text-2xl font-bold text-white">
+                <span id="uvVal">--</span>
+                <span id="uvLabel" class="text-xs font-normal"></span>
+              </div>
+              <p id="uvNote" class="text-[11px] text-slate-400 mt-1">--</p>
+            </div>
+          </div>
+
+          <div class="glass-card p-5 rounded-2xl flex flex-col justify-between">
+            <div class="flex items-center justify-between text-slate-400">
+              <span class="text-xs font-semibold uppercase tracking-wider">Air Quality</span>
+              <i data-lucide="activity" class="w-5 h-5 text-emerald-400"></i>
+            </div>
+            <div class="mt-4">
+              <div class="text-2xl font-bold text-white">
+                <span id="aqiVal">--</span>
+                <span id="aqiLabel" class="text-xs font-normal"></span>
+              </div>
+              <p id="aqiNote" class="text-[11px] text-slate-400 mt-1">--</p>
+            </div>
+          </div>
+
+          <div class="glass-card p-5 rounded-2xl flex flex-col justify-between">
+            <div class="flex items-center justify-between text-slate-400">
+              <span class="text-xs font-semibold uppercase tracking-wider">Pressure</span>
+              <i data-lucide="gauge" class="w-5 h-5 text-teal-400"></i>
+            </div>
+            <div class="mt-4">
+              <div id="pressureVal" class="text-2xl font-bold text-white">--</div>
+              <p id="pressureNote" class="text-[11px] text-slate-400 mt-1">--</p>
+            </div>
+          </div>
+
+          <div class="glass-card p-5 rounded-2xl flex flex-col justify-between">
+            <div class="flex items-center justify-between text-slate-400">
+              <span class="text-xs font-semibold uppercase tracking-wider">Visibility</span>
+              <i data-lucide="eye" class="w-5 h-5 text-purple-400"></i>
+            </div>
+            <div class="mt-4">
+              <div id="visibilityVal" class="text-2xl font-bold text-white">--</div>
+              <p id="visibilityNote" class="text-[11px] text-slate-400 mt-1">--</p>
+            </div>
+          </div>
+
+        </section>
+      </main>
+
+      <!-- 5-day forecast -->
+      <section class="space-y-4">
+        <div class="flex items-center justify-between">
+          <h3 class="text-lg font-bold text-white flex items-center gap-2">
+            <i data-lucide="calendar" class="w-5 h-5 text-emerald-400"></i>
+            5-Day Weather Forecast
+          </h3>
+          <span id="updatedAt" class="text-xs text-slate-400 font-medium">Auto-refresh every 30 min</span>
+        </div>
+
+        <div id="forecastContainer" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4"></div>
+      </section>
+
+    </div>
+  </div>
+
+  <footer class="relative z-10 border-t border-white/5 py-6 text-center text-xs text-slate-500">
+    <p>AeroPulse Weather Application • Created by Rakesh Nanak Ahuja • Data: <a href="https://open-meteo.com" target="_blank" rel="noopener" class="underline hover:text-emerald-400">Open-Meteo</a></p>
+  </footer>
+
+  <script>
+    // ---------- Config ----------
+    const DEFAULT_PLACE = {
+      name: "Nagpur", admin1: "Maharashtra", country: "India",
+      latitude: 21.1458, longitude: 79.0882
+    };
+    const REFRESH_MS = 30 * 60 * 1000;
+    const STORAGE_KEY = "aeropulse:lastPlace";
+
+    const $ = (id) => document.getElementById(id);
+    let requestId = 0;
+    let currentPlace = null;
+    let refreshTimer = null;
+
+    // ---------- Helpers ----------
+    // WMO weather code -> label + lucide icon
+    function describeWeather(code, isDay) {
+      if (code === 0)  return { label: isDay ? "Clear Sky" : "Clear Night", icon: isDay ? "sun" : "moon" };
+      if (code === 1)  return { label: "Mainly Clear", icon: isDay ? "sun" : "moon" };
+      if (code === 2)  return { label: "Partly Cloudy", icon: "cloud-sun" };
+      if (code === 3)  return { label: "Overcast", icon: "cloud" };
+      if (code === 45 || code === 48) return { label: "Fog", icon: "cloud-fog" };
+      if (code >= 51 && code <= 57)   return { label: "Drizzle", icon: "cloud-drizzle" };
+      if (code >= 61 && code <= 67)   return { label: "Rain", icon: "cloud-rain" };
+      if (code >= 71 && code <= 77)   return { label: "Snow", icon: "cloud-snow" };
+      if (code >= 80 && code <= 82)   return { label: "Rain Showers", icon: "cloud-rain" };
+      if (code === 85 || code === 86) return { label: "Snow Showers", icon: "cloud-snow" };
+      if (code >= 95) return { label: "Thunderstorm", icon: "cloud-lightning" };
+      return { label: "Unknown", icon: "cloud" };
+    }
+
+    // UV scale: 0-2 Low, 3-5 Moderate, 6-7 High, 8-10 Very High, 11+ Extreme
+    function uvInfo(uv) {
+      if (uv < 3)  return { label: "Low",       color: "text-emerald-400", note: "No protection needed" };
+      if (uv < 6)  return { label: "Moderate",  color: "text-amber-400",   note: "Wear sunscreen outdoors" };
+      if (uv < 8)  return { label: "High",      color: "text-orange-400",  note: "Sun protection required" };
+      if (uv < 11) return { label: "Very High", color: "text-rose-400",    note: "Avoid midday sun" };
+      return { label: "Extreme", color: "text-purple-400", note: "Stay indoors at midday" };
+    }
+
+    // US AQI scale
+    function aqiInfo(aqi) {
+      if (aqi <= 50)  return { label: "Good",               color: "text-emerald-400", note: "Ideal outdoor conditions" };
+      if (aqi <= 100) return { label: "Moderate",           color: "text-amber-400",   note: "Sensitive people limit exertion" };
+      if (aqi <= 150) return { label: "Unhealthy (Sens.)",  color: "text-orange-400",  note: "Sensitive groups take care" };
+      if (aqi <= 200) return { label: "Unhealthy",          color: "text-rose-400",    note: "Limit outdoor activity" };
+      if (aqi <= 300) return { label: "Very Unhealthy",     color: "text-purple-400",  note: "Avoid outdoor activity" };
+      return { label: "Hazardous", color: "text-purple-400", note: "Stay indoors, use a mask" };
+    }
+
+    function humidityNote(h) {
+      if (h < 30) return "Dry air";
+      if (h <= 60) return "Comfortable range";
+      if (h <= 80) return "Humid";
+      return "Very humid";
+    }
+
+    function windNote(kmh) {
+      if (kmh < 2)  return "Calm";
+      if (kmh < 12) return "Light breeze";
+      if (kmh < 29) return "Gentle to moderate breeze";
+      if (kmh < 50) return "Strong breeze";
+      return "Very windy";
+    }
+
+    function pressureNote(hpa) {
+      if (hpa < 1000) return "Low pressure";
+      if (hpa <= 1020) return "Normal pressure";
+      return "High pressure";
+    }
+
+    function visibilityNote(km) {
+      if (km >= 10) return "Clear view horizon";
+      if (km >= 4)  return "Moderate visibility";
+      if (km >= 1)  return "Poor visibility";
+      return "Very poor visibility";
+    }
+
+    // Build a Date at UTC from API local time strings ("2026-11-12T22:30" / "2026-11-12")
+    function parseApiTime(str) {
+      return new Date(str.length === 10 ? str + "T00:00:00Z" : str + ":00Z");
+    }
+
+    function fmtLongDate(d) {
+      return d.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
+    }
+
+    function setLabel(valueId, labelId, value, label, colorClass) {
+      $(valueId).textContent = value;
+      const el = $(labelId);
+      el.textContent = label;
+      el.className = "text-xs font-normal " + colorClass;
+    }
+
+    function setLoading(on) {
+      $("dashboard").classList.toggle("is-loading", on);
+      $("liveBadgeText").textContent = on ? "Loading" : "Live";
+    }
+
+    function showError(msg) {
+      $("errorText").textContent = msg;
+      $("errorBox").classList.remove("hidden");
+      $("errorBox").classList.add("flex");
+      lucide.createIcons();
+    }
+
+    function hideError() {
+      $("errorBox").classList.add("hidden");
+      $("errorBox").classList.remove("flex");
+    }
+
+    async function fetchJSON(url) {
+      const res = await fetch(url);
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      return res.json();
+    }
+
+    // ---------- Rendering ----------
+    function render(place, w, aq) {
+      const cur = w.current;
+      const daily = w.daily;
+      const isDay = cur.is_day === 1;
+      const info = describeWeather(cur.weather_code, isDay);
+
+      $("cityName").textContent = place.name;
+      $("locationSub").textContent = [place.admin1, place.country].filter(Boolean).join(", ") || "\u00A0";
+      $("currentDate").textContent = fmtLongDate(parseApiTime(cur.time));
+
+      $("tempValue").textContent = Math.round(cur.temperature_2m);
+      $("weatherCondition").textContent = info.label;
+      $("heroIconContainer").innerHTML = `<i data-lucide="${info.icon}" class="w-16 h-16 text-emerald-400"></i>`;
+
+      $("feelsLike").textContent = Math.round(cur.apparent_temperature) + "°C";
+      $("highLow").textContent = Math.round(daily.temperature_2m_max[0]) + "° / " + Math.round(daily.temperature_2m_min[0]) + "°";
+
+      // Humidity
+      $("humidityVal").textContent = Math.round(cur.relative_humidity_2m) + "%";
+      $("humidityNote").textContent = humidityNote(cur.relative_humidity_2m);
+
+      // Wind
+      $("windVal").textContent = Math.round(cur.wind_speed_10m) + " km/h";
+      $("windNote").textContent = windNote(cur.wind_speed_10m);
+
+      // UV (today's max)
+      const uv = daily.uv_index_max[0];
+      const uvI = uvInfo(uv);
+      setLabel("uvVal", "uvLabel", Math.round(uv * 10) / 10, uvI.label, uvI.color);
+      $("uvNote").textContent = "Today's max · " + uvI.note;
+
+      // AQI
+      const aqi = aq && aq.current ? aq.current.us_aqi : null;
+      if (aqi == null) {
+        setLabel("aqiVal", "aqiLabel", "N/A", "", "");
+        $("aqiNote").textContent = "Air quality data unavailable";
+      } else {
+        const aqI = aqiInfo(aqi);
+        setLabel("aqiVal", "aqiLabel", Math.round(aqi), aqI.label, aqI.color);
+        $("aqiNote").textContent = aqI.note + " (US AQI)";
+      }
+
+      // Pressure
+      $("pressureVal").textContent = Math.round(cur.pressure_msl) + " hPa";
+      $("pressureNote").textContent = pressureNote(cur.pressure_msl);
+
+      // Visibility (hourly, match current hour)
+      const hourKey = cur.time.slice(0, 13) + ":00";
+      const idx = w.hourly.time.indexOf(hourKey);
+      const visM = idx >= 0 ? w.hourly.visibility[idx] : null;
+      if (visM == null) {
+        $("visibilityVal").textContent = "N/A";
+        $("visibilityNote").textContent = "Data unavailable";
+      } else {
+        const km = visM / 1000;
+        $("visibilityVal").textContent = (km >= 10 ? Math.round(km) : km.toFixed(1)) + " km";
+        $("visibilityNote").textContent = visibilityNote(km);
+      }
+
+      // Forecast
+      const container = $("forecastContainer");
+      container.innerHTML = "";
+      daily.time.forEach((t, i) => {
+        const d = parseApiTime(t);
+        const day = d.toLocaleDateString("en-GB", { weekday: "short", timeZone: "UTC" });
+        const date = d.toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" });
+        const f = describeWeather(daily.weather_code[i], true);
+
+        const card = document.createElement("div");
+        card.className = "glass-card p-4 rounded-2xl flex flex-col items-center justify-between text-center space-y-3";
+        card.innerHTML = `
+          <div>
+            <p class="text-sm font-bold text-white">${i === 0 ? "Today" : day}</p>
+            <p class="text-[10px] text-slate-400">${date}</p>
+          </div>
+          <div class="p-2.5 rounded-xl bg-white/5 border border-white/5">
+            <i data-lucide="${f.icon}" class="w-7 h-7 text-emerald-400"></i>
+          </div>
+          <div>
+            <p class="text-lg font-bold text-white">${Math.round(daily.temperature_2m_max[i])}° <span class="text-sm font-normal text-slate-400">/ ${Math.round(daily.temperature_2m_min[i])}°</span></p>
+            <p class="text-[11px] text-slate-400">${f.label}</p>
+          </div>
+        `;
+        container.appendChild(card);
+      });
+
+      $("updatedAt").textContent = "Updated " + new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) + " · auto-refresh 30 min";
+
+      lucide.createIcons();
+    }
+
+    // ---------- Data loading ----------
+    async function loadWeather(place) {
+      const myId = ++requestId;
+      hideError();
+      setLoading(true);
+
+      const { latitude: lat, longitude: lon } = place;
+      const weatherUrl =
+        "https://api.open-meteo.com/v1/forecast" +
+        `?latitude=${lat}&longitude=${lon}` +
+        "&current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,pressure_msl,wind_speed_10m,is_day" +
+        "&daily=weather_code,temperature_2m_max,temperature_2m_min,uv_index_max" +
+        "&hourly=visibility&timezone=auto&forecast_days=5";
+      const aqUrl =
+        "https://air-quality-api.open-meteo.com/v1/air-quality" +
+        `?latitude=${lat}&longitude=${lon}&current=us_aqi&timezone=auto`;
+
+      try {
+        const [wRes, aRes] = await Promise.allSettled([fetchJSON(weatherUrl), fetchJSON(aqUrl)]);
+        if (myId !== requestId) return; // a newer request replaced this one
+        if (wRes.status !== "fulfilled") throw wRes.reason;
+
+        currentPlace = place;
+        render(place, wRes.value, aRes.status === "fulfilled" ? aRes.value : null);
+
+        try { localStorage.setItem(STORAGE_KEY, JSON.stringify(place)); } catch (_) {}
+        scheduleRefresh();
+      } catch (err) {
+        if (myId === requestId) {
+          showError("Couldn't load weather data. Please check your internet connection and try again.");
+        }
+      } finally {
+        if (myId === requestId) setLoading(false);
+      }
+    }
+
+    function scheduleRefresh() {
+      clearInterval(refreshTimer);
+      refreshTimer = setInterval(() => {
+        if (currentPlace && !document.hidden) loadWeather(currentPlace);
+      }, REFRESH_MS);
+    }
+
+    // ---------- Search ----------
+    async function handleSearch(event) {
+      event.preventDefault();
+      const query = $("searchInput").value.trim();
+      if (!query) return;
+
+      hideError();
+      setLoading(true);
+      try {
+        const url = "https://geocoding-api.open-meteo.com/v1/search?count=1&language=en&format=json&name=" + encodeURIComponent(query);
+        const data = await fetchJSON(url);
+        if (!data.results || !data.results.length) {
+          setLoading(false);
+          showError(`No city found for "${query}". Please check the spelling.`);
+          return;
+        }
+        const r = data.results[0];
+        await loadWeather({
+          name: r.name, admin1: r.admin1 || "", country: r.country || "",
+          latitude: r.latitude, longitude: r.longitude
+        });
+      } catch (err) {
+        setLoading(false);
+        showError("Search failed. Please check your internet connection and try again.");
+      }
+    }
+
+    // ---------- Geolocation ----------
+    function useGeolocation() {
+      if (!navigator.geolocation) {
+        showError("Your browser doesn't support geolocation.");
+        return;
+      }
+      hideError();
+      setLoading(true);
+
+      navigator.geolocation.getCurrentPosition(
+        async (pos) => {
+          const { latitude, longitude } = pos.coords;
+          let place = { name: "Your Location", admin1: "", country: "", latitude, longitude };
+          try {
+            const geo = await fetchJSON(
+              `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${latitude}&longitude=${longitude}&localityLanguage=en`
+            );
+            place.name = geo.city || geo.locality || place.name;
+            place.admin1 = geo.principalSubdivision || "";
+            place.country = geo.countryName || "";
+          } catch (_) { /* keep fallback name */ }
+          loadWeather(place);
+        },
+        (err) => {
+          setLoading(false);
+          const msg = err.code === 1
+            ? "Location permission was denied. Please allow it in your browser settings."
+            : "Couldn't detect your location. Please try again or search for a city.";
+          showError(msg);
+        },
+        { timeout: 10000, maximumAge: 5 * 60 * 1000 }
+      );
+    }
+
+    // ---------- Init ----------
+    window.addEventListener("DOMContentLoaded", () => {
+      lucide.createIcons();
+      $("searchForm").addEventListener("submit", handleSearch);
+      $("locateBtn").addEventListener("click", useGeolocation);
+
+      let place = DEFAULT_PLACE;
+      try {
+        const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
+        if (saved && typeof saved.latitude === "number" && typeof saved.longitude === "number") place = saved;
+      } catch (_) {}
+      loadWeather(place);
+    });
+  </script>
+</body>
+</html>
